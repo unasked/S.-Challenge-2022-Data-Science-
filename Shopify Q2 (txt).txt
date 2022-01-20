@@ -1,0 +1,39 @@
+
+2a)
+SELECT COUNT(OrderID) FROM [Orders] WHERE ShipperID = 
+(SELECT ShipperID FROM [Shippers] WHERE ShipperName = "Speedy Express") 
+
+
+2b)
+SELECT LastName FROM Employees
+INNER JOIN (
+	SELECT EmployeeID, MAX(OrderCounts) FROM (
+		SELECT EmployeeID, COUNT(EmployeeID) AS OrderCounts FROM [Orders] GROUP BY EmployeeID
+	)
+) MostSold ON Employees.EmployeeID = MostSold.EmployeeID
+
+
+2c)
+SELECT ProductName FROM Products
+INNER JOIN (
+    SELECT ProductID, MAX(CombinedQty) FROM (
+        SELECT ProductID, SUM(Quantity) AS CombinedQty FROM OrderDetails
+        INNER JOIN (
+            SELECT OrderID, Orders.CustomerID FROM Orders
+            INNER JOIN (
+                    SELECT CustomerID, Country FROM Customers WHERE Country = "Germany"
+                ) German
+            ON Orders.CustomerID = German.CustomerID
+        ) GermanyOrders ON GermanyOrders.OrderID = OrderDetails.OrderID
+        GROUP BY ProductID ORDER BY CombinedQty DESC
+    )
+) MostOrdered ON Products.ProductID = MostOrdered.ProductID
+
+
+
+
+
+
+
+
+
