@@ -1,0 +1,164 @@
+---
+title: "Shopify Data Science Internship Challenge 2022"
+author: "Joshua Boehm"
+date: "1/17/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(knitr)
+shop <- read_csv("C:/Users/chili/Downloads/2019 Winter Data Science Intern Challenge Data Set - Sheet1.csv")
+```
+
+Our examination of sneaker shops hosted with Shopify begins with simply calculating the mean order amount as things stand.
+
+
+```{r,echo=TRUE}
+
+prices <- shop$order_amount
+mean(prices)
+
+
+```
+
+As mentioned in the original prompt, this is an oddly high average considering the context. Consequently, this leads me to think that there could be outliers in our data. This does appear to be the case:
+
+
+```{r,echo=TRUE}
+
+# Sort order amounts descending
+head <- prices[order(-prices)]
+
+# Examining the 30 highest unique order amounts
+unique(head)[1:30]
+
+
+```
+
+Quickly looking at the first thirty unique order amounts, most on the lower end are around $1,000. After this, however, order numbers increase suddenly and sharply, going as high as \$50,000, \$100,000, and even \$700,000. When we have extreme outliers in this case, it's a sign that we should be considering a different statistic.
+
+\
+
+Let's see what's happening with these $700,000 orders.
+
+\
+
+```{r,echo=TRUE}
+
+outliers <- subset(shop, shop$order_amount > 700000)
+kable(outliers)
+
+```
+
+These outlandishly-expensive orders have multiple things in common: all were placed at shop number 42, ordered by user_id 607, consist of 2000 items, and placed at exactly 4:00:00. It should be undoubtedly irrational for one person to make orders like this over multiple days at 4AM. With all of this considered, we may have enough evidence to drop these data points *if needed*. Perhaps these are bot orders, or possibly maintenance/testing being done--in other words, not normal consumer behavior.
+
+\
+\
+
+The next unique order numbers still seem to be a little high based on orders from shoe shops, so we should look into these as well.
+
+```{r,echo=TRUE}
+
+outliers <- subset(shop, shop$order_amount > 20000 & shop$order_amount < 700000)
+
+```
+\
+
+Some facets of this subset differ from the previous subset. For example, there's nothing too suspicious about the order dates and user IDs associated with orders. One thing that stands out is that all of these expensive orders were all placed at shop number 78. We know that each shop only sells one type of shoe, and the order amounts are all multiples of $25,725. It's possible that this one shop just happens to be selling exorbitantly expensive shoes (resale prices on some shoes can get pretty crazy). In comparison to the other shops/order amounts, this shop is an outlier, but we can't necessarily consider it to be irrelevant like we might have done with the \$700,000 orders.
+
+\
+
+The average after removing orders over $700,000 is significantly lower than before (~\$754), but still somewhat high.
+
+```{r,echo=TRUE}
+
+prices_adj <- subset(shop, shop$order_amount < 700000)
+
+mean(prices_adj$order_amount)
+
+```
+
+\
+
+Let's switch gears and think about any new metrics that can be used to get more insight into what's being purchased. The simplest possible alternative would be to calculate the median, which would give the most typical total order amount.
+
+```{r,echo=TRUE}
+
+median(prices_adj$order_amount)
+
+```
+
+While looking at the median is more realistic than the mean, since it's not affected as heavily by outliers, it's still not as insightful as we might want to be. We have access to the number of total items in an order, so it would make sense to consider the average price per item in an order. For instance, an order of three shoes for a total of $900 means that the average price per item is \$300.
+
+\
+
+*For visualization purposes only*, I've omitted all orders with amounts greater than \$2000 from the general histogram. To get a sense of the overall shape, a histogram of the log of average price per item is provided as well.
+
+
+```{r,echo=TRUE}
+
+prices_adj <- subset(shop, shop$order_amount < 2000)
+
+n <- length(prices_adj$order_id)
+
+avgs <- numeric(n)
+
+for (i in 1:n) {
+  
+    avgs[i] <- prices_adj$order_amount[i] / prices_adj$total_items[i]
+}
+
+hist(avgs)
+
+# ----
+
+prices_adj <- subset(shop, shop$order_amount < 700000)
+
+n <- length(prices_adj$order_id)
+
+log_avgs <- numeric(n)
+
+for (i in 1:n) {
+  
+    log_avgs[i] <- log(prices_adj$order_amount[i] / prices_adj$total_items[i])
+}
+
+hist(log_avgs, breaks=50, xlim=c(4,11))
+
+
+```
+
+\
+
+One final metric that we might want to consider is the average total order price per shop. This is in the same vein as the original proposal of average order value, but provides a bit more specific insight when filtering by individual shops. This could also account for overall outliers--for example, we saw previously that shop 78 has items worth $25,000.
+
+```{r,echo=TRUE}
+
+avgs <- numeric(100)
+
+for (i in 1:100) {
+  
+  # Subsets into the current shop in the loop
+  curr_shop <- subset(shop, shop$shop_id == i)
+  
+  # From the current shop, sum all order amounts and divide by the number of orders (length)
+  avgs[i] <- sum(curr_shop$order_amount) / nrow(curr_shop)
+  
+}
+
+# Bar plot of untransformed values; ylim=(0,500)
+barplot(avgs, names.arg = c(1:length(avgs)), ylim=c(0,5000), xlab="Shop ID",
+        ylab="Average order amount ($)", main="Avg. order amt. by shop")
+
+# Log transformed bar plot
+barplot(log(avgs), names.arg = c(1:length(avgs)), xlab="Shop ID",
+        ylab="log(Average order amount)", main="Avg. log order amt. by shop")
+
+df <- data.frame("shop_id" = c(1:100), "avg_order_amt" = avgs)
+
+kable(df)
+
+```
